@@ -7,9 +7,39 @@ from domain.repository.game_repository import GameRepository
 from domain.repository.player_action_repository import PlayerActionRepository
 from telegram.ext import ContextTypes
 from decorators import restrict_to_channel
-from commands.admin_interactions import send_approval_request_to_admins
+from config import CHANNEL_ID
 
 class GameManagement:
+
+    @staticmethod
+    async def startgame_action(context: ContextTypes.DEFAULT_TYPE, user_name: str):
+        """
+        Действие запуска игры после одобрения администратора.
+        """
+        session = Session()
+
+        # Проверяем, есть ли незавершённая игра
+        unfinished_game = session.query(Game).filter(Game.end_time.is_(None)).first()
+
+        if unfinished_game:
+            context.bot_data["current_game_id"] = unfinished_game.id
+            await context.bot.send_message(
+                chat_id=CHANNEL_ID,
+                text=f"Игра уже была начата ранее. Восстанавливаем контекст по запросу {user_name}."
+            )
+        else:
+            # Создаём новую игру
+            new_game = Game(start_time=datetime.now())
+            session.add(new_game)
+            session.commit()
+
+            context.bot_data["current_game_id"] = new_game.id
+            await context.bot.send_message(
+                chat_id=CHANNEL_ID,
+                text=f"Новая игра успешно начата по запросу {user_name}!"
+            )
+
+        session.close()
 
     @staticmethod
     async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE):

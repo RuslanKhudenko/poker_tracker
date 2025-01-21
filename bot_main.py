@@ -3,7 +3,7 @@
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler
 from commands.game_management import GameManagement
 from commands.player_actions import PlayerActions
-from commands.admin_interactions import handle_admin_response
+from commands.admin_interactions import handle_admin_response, approve_action
 
 from config import BOT_TOKEN
 
@@ -12,7 +12,9 @@ def run_bot():
     application = Application.builder().token(BOT_TOKEN).build()
 
     # Регистрация команд управления игрой
-    application.add_handler(CommandHandler("startgame", GameManagement.start_game))
+#    application.add_handler(CommandHandler("startgame", GameManagement.start_game))
+    application.add_handler(CommandHandler("startgame", lambda update, context: approve_action(update, context, "startgame")))
+
     application.add_handler(CommandHandler("endgame", GameManagement.end_game))
 
     # Регистрация команд действий игроков

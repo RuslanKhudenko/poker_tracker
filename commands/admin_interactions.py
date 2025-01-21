@@ -1,5 +1,30 @@
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ContextTypes
+
+from commands.game_management import GameManagement
 from config import CHANNEL_ID
+
+@staticmethod
+async def approve_action(update: Update, context: ContextTypes.DEFAULT_TYPE, action_type: str):
+    """
+    Общая функция для обработки действий, требующих одобрения администратора.
+
+    :param update: Объект Update от Telegram
+    :param context: Контекст Telegram
+    :param action_type: Тип действия (например, "startgame")
+    """
+    user_name = update.effective_user.username or "Unknown User"
+
+    # Проверяем активный запрос
+    active_requests = context.bot_data.setdefault("approval_requests", {})
+    if (user_name, action_type) in active_requests:
+        await update.message.reply_text(f"Ваш запрос на {action_type} уже находится на рассмотрении администратора.")
+        return
+
+    # Отправляем запрос на аппрув
+    approved = await send_approval_request_to_admins(context, user_name, action_type=action_type)
+    if not approved:
+        await update.message.reply_text(f"Ваш запрос на {action_type} уже находится на рассмотрении администратора.")
 
 async def send_approval_request_to_admins(context, user_name, action_type="buyin"):
     """
@@ -9,6 +34,14 @@ async def send_approval_request_to_admins(context, user_name, action_type="buyin
     :param user_name: Имя пользователя, запрашивающего действие
     :param action_type: Тип действия, по умолчанию "buyin"
     """
+    # Проверяем, есть ли уже активный запрос для пользователя
+    active_requests = context.bot_data.setdefault("approval_requests", {})
+    if (user_name, action_type) in active_requests:
+        return False  # Запрос уже отправлен
+
+    # Добавляем запрос в активные
+    active_requests[(user_name, action_type)] = True
+
     # Получаем список администраторов канала
     chat_administrators = await context.bot.get_chat_administrators(CHANNEL_ID)
     admin_ids = [admin.user.id for admin in chat_administrators if not admin.user.is_bot]
@@ -32,17 +65,16 @@ async def send_approval_request_to_admins(context, user_name, action_type="buyin
             )
         except Exception as e:
             print(f"Ошибка отправки запроса администратору {admin_id}: {e}")
+    return True
 
-
-async def handle_admin_response(update: Update, context):
-    """
-    Обработать нажатие кнопки администратором.
-
-    :param update: Обновление Telegram
-    :param context: Контекст Telegram
-    """
+async def handle_admin_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+
+    action_data = query.data.split(":")
+    action = action_data[0]  # approve/reject
+    user_name = action_data[1]
+    action_type = action_data[2]
 
     # Удаляем сообщение с кнопками
     try:
@@ -50,8 +82,22 @@ async def handle_admin_response(update: Update, context):
     except Exception as e:
         print(f"Ошибка при удалении сообщения: {e}")
 
-    # Отправляем админу подтверждение на его действие
-    await query.message.reply_text(f"Вы нажали кнопку \"{query.data}\"")
+    # Удаляем запрос из активных
+    active_requests = context.bot_data.setdefault("approval_requests", {})
+    active_requests.pop((user_name, action_type), None)
 
-    # Дополнительная обработка действия может быть добавлена здесь
-
+    if action == "approve":
+        # Действие разрешено, выполняем соответствующую функцию
+        if action_type == "startgame":
+            await GameManagement.startgame_action(context, user_name)
+        else:
+            await context.bot.send_message(
+                chat_id=CHANNEL_ID,
+                text=f"Действие {action_type} для пользователя {user_name} выполнено."
+            )
+    elif action == "reject":
+        # Действие отклонено
+        await context.bot.send_message(
+            chat_id=CHANNEL_ID,
+            text=f"Администратор отклонил действие {action_type} для пользователя {user_name}."
+        )
