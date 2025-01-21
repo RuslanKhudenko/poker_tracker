@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 
-from telegram.ext import Application, CommandHandler
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler
 from commands.game_management import GameManagement
 from commands.player_actions import PlayerActions
+from commands.admin_interactions import handle_admin_response
+
 from config import BOT_TOKEN
 
 
@@ -20,6 +22,8 @@ def run_bot():
     application.add_handler(CommandHandler("summarygames", PlayerActions.summarygames))
     application.add_handler(CommandHandler("log", PlayerActions.log))
     application.add_handler(CommandHandler("help", PlayerActions.help))
+
+    application.add_handler(CallbackQueryHandler(handle_admin_response))
 
     # Запуск бота
     application.run_polling()

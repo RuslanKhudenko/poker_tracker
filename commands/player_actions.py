@@ -239,6 +239,8 @@ class PlayerActions:
             "/buyin - Закупить фишки.\n\n"
             "/endgame - Завершить текущую игру.\n"
         )
+
+#        print (update,update.effective_user)
         await update.message.reply_text(help_text)
 
     def summary_formatter(actions, game) -> str:

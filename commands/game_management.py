@@ -7,13 +7,17 @@ from domain.repository.game_repository import GameRepository
 from domain.repository.player_action_repository import PlayerActionRepository
 from telegram.ext import ContextTypes
 from decorators import restrict_to_channel
-
+from commands.admin_interactions import send_approval_request_to_admins
 
 class GameManagement:
 
     @staticmethod
     async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session = Session()
+
+        # Отправляем запрос админам на одобрение действия "startgame"
+        user_name = update.effective_user.username or "Unknown User"
+        await send_approval_request_to_admins(context, user_name, action_type="startgame")
 
         # Проверяем, есть ли незавершённая игра в базе данных
         if "current_game_id" in context.bot_data:
